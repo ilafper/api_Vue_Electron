@@ -110,7 +110,7 @@ app.post('/api/login', async (req, res) => {
     if (!correo || !contraseña) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Correo y contraseña son obligatorios' 
+        message: 'Correo y contraseña son requeridos' 
       });
     }
     
@@ -118,28 +118,19 @@ app.post('/api/login', async (req, res) => {
     const { usuarios } = await connectToMongoDB();
     
     // Buscar usuario por correo
+
     const usuario = await usuarios.findOne({ correo });
-    
-    if (!usuario) {
-      console.log('Usuario no encontrado:', correo);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Credenciales incorrectas' 
-      });
-    }
-    
-    // Verificar contraseña con bcrypt
     const contraseñaValida = await bcrypt.compare(contraseña, usuario.contraseña);
-    
-    if (!contraseñaValida) {
-      console.log('❌ Contraseña incorrecta para:', correo);
+    if (!usuario || !contraseñaValida) {
+      console.log('Usuario no encontrado o contraseña incorrecta:', correo);
       return res.status(401).json({ 
         success: false, 
-        message: 'Credenciales incorrectas' 
+        message: "correo o contraseña incorrectas" 
       });
     }
     
-    console.log('✅ Login exitoso para:', usuario.nombre);
+  
+    console.log('Login exitoso para:', usuario.nombre);
     
     // Crear respuesta (sin contraseña)
     const respuesta = {
@@ -150,9 +141,7 @@ app.post('/api/login', async (req, res) => {
         apellidos: usuario.apellidos,
         correo: usuario.correo,
         rol: usuario.rol
-      },
-      // Podrías agregar un token JWT aquí si quieres
-      token: 'jwt_simulado_' + Date.now()
+      }
     };
     
     res.json(respuesta);
@@ -161,7 +150,7 @@ app.post('/api/login', async (req, res) => {
     console.error('Error en login:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Error interno del servidor' 
+      message: 'Login nonono' 
     });
   }
 });
