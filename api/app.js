@@ -99,4 +99,93 @@ app.post('/api/crearusuario', async (req, res) => {
 });
 
 
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const { correo, contraseña } = req.body;
+    
+    console.log('Intentando login para:', correo);
+    
+
+    if (!correo || !contraseña) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Correo y contraseña son obligatorios' 
+      });
+    }
+    
+    // Conectar a MongoDB
+    const { usuarios } = await connectToMongoDB();
+    
+    // Buscar usuario por correo
+    const usuario = await usuarios.findOne({ correo });
+    
+    if (!usuario) {
+      console.log('Usuario no encontrado:', correo);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Credenciales incorrectas' 
+      });
+    }
+    
+    // Verificar contraseña con bcrypt
+    const contraseñaValida = await bcrypt.compare(contraseña, usuario.contraseña);
+    
+    if (!contraseñaValida) {
+      console.log('❌ Contraseña incorrecta para:', correo);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Credenciales incorrectas' 
+      });
+    }
+    
+    console.log('✅ Login exitoso para:', usuario.nombre);
+    
+    // Crear respuesta (sin contraseña)
+    const respuesta = {
+      success: true,
+      user: {
+        id: usuario._id,
+        nombre: usuario.nombre,
+        apellidos: usuario.apellidos,
+        correo: usuario.correo,
+        rol: usuario.rol
+      },
+      // Podrías agregar un token JWT aquí si quieres
+      token: 'jwt_simulado_' + Date.now()
+    };
+    
+    res.json(respuesta);
+    
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 module.exports = app;
