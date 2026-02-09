@@ -188,11 +188,12 @@ app.post("/api/creareventos", async (req, res) => {
       fechaInicio,
       fechaFin,
     } = req.body;
+    console.log("contenido:  "+req.body);
 
     // Validar campos requeridos
     if (
-      !nombreEvento ||
-      !descripcionEvento ||
+      !nombreEvento||
+      !descripcionEvento||
       !plazasTotales ||
       !fechaInicio ||
       !fechaFin
@@ -200,7 +201,7 @@ app.post("/api/creareventos", async (req, res) => {
       return res.status(400).json({ error: "faltan campos en los eventos" });
     }
 
-    // CORRECCIÓN: nombreEvento ya es string, no necesita .nombreEvento
+    
     let nombreEventoMinus = nombreEvento.trim().toLowerCase();
     console.log("Buscando evento:", nombreEventoMinus);
 
@@ -231,7 +232,7 @@ app.post("/api/creareventos", async (req, res) => {
     let codigo_evento = nombreEvento + Math.floor(Math.random() * 10000000000);
     let code_Evento = codigo_evento.toString();
     console.log("Código evento Propio:", code_Evento);
-
+    let estadoIniciar= "libre"
     // Crear objeto del evento
     const eventoNuevo = {
       nombreEvento: nombreEvento.trim(), // Guardar sin espacios extras
@@ -241,7 +242,7 @@ app.post("/api/creareventos", async (req, res) => {
       fechaInicio: fechaInicioDate,
       fechaFin: fechaFinDate,
       code_Evento,
-      createdAt: new Date()
+      estado:estadoIniciar
     };
 
     // Insertar en la base de datos
@@ -259,8 +260,6 @@ app.post("/api/creareventos", async (req, res) => {
         code_Evento,
         fechaInicio: fechaInicio,
         fechaFin: fechaFin,
-        fechaInicioISO: fechaInicioDate.toISOString(),
-        fechaFinISO: fechaFinDate.toISOString()
       },
     };
 
