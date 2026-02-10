@@ -1,12 +1,10 @@
 const express = require("express");
 const { MongoClient, ServerApiVersion } = require("mongodb");
-const { ObjectId } = require("mongodb");
 const bcrypt = require("bcryptjs");
 const app = express();
 app.use(express.json());
 
-const uri =
-  "mongodb+srv://ialfper:ialfper21@alumnos.zoinj.mongodb.net/alumnos?retryWrites=true&w=majority"; //
+const uri ="mongodb+srv://ialfper:ialfper21@alumnos.zoinj.mongodb.net/alumnos?retryWrites=true&w=majority";
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -40,6 +38,8 @@ app.get("/api/usuarios", async (req, res) => {
       .find({}, { projection: { contraseña: 0 } })
       .toArray();
     res.json(lista_usuarios);
+    console.log(lista_usuarios);
+    
   } catch (error) {
     res.status(500).json({ error: "Error al obtener los usuarios" });
   }
@@ -50,11 +50,20 @@ app.get("/api/eventos", async (req, res) => {
     const { eventos } = await connectToMongoDB();
     // Excluir el campo contraseña de la respuesta
     const lista_eventos = await eventos.find().toArray();
-    res.json(lista_eventos);
+
+    // Formatear fechas a YYYY-MM-DD
+    const eventosFormateados = lista_eventos.map(ev => ({
+      ...ev,
+      fechaInicio: ev.fechaInicio.toISOString().split('T')[0],
+      fechaFin: ev.fechaFin.toISOString().split('T')[0],
+    }));
+
+    res.json({ success: true, eventosFormateados });
   } catch (error) {
     res.status(500).json({ error: "Error al obtener los eventos" });
   }
 });
+
 
 // Crear usuario NUEVO
 
@@ -90,6 +99,9 @@ app.post("/api/crearusuario", async (req, res) => {
 
     const rol = "user";
 
+    let codigo_user = 'Codigo'+ Math.floor(Math.random() * 1000);
+    let code_user = codigo_user.toString();
+
     // Crear objeto de usuario
     const nuevoUsuario = {
       nombre,
@@ -97,6 +109,7 @@ app.post("/api/crearusuario", async (req, res) => {
       correo,
       contraseña: contraseñaHasheada,
       rol,
+      code_user
     };
 
     // Insertar en la base de datos
@@ -110,8 +123,7 @@ app.post("/api/crearusuario", async (req, res) => {
         nombre,
         apellidos,
         correo,
-        rol,
-        fechaCreacion: nuevoUsuario.fechaCreacion,
+        rol
       },
     };
 
@@ -229,13 +241,13 @@ app.post("/api/creareventos", async (req, res) => {
 
     
 
-    let codigo_evento = nombreEvento + Math.floor(Math.random() * 10000000000);
+    let codigo_evento = 'Codigo'+ Math.floor(Math.random() * 10000);
     let code_Evento = codigo_evento.toString();
     console.log("Código evento Propio:", code_Evento);
     let estadoIniciar= "libre"
     // Crear objeto del evento
     const eventoNuevo = {
-      nombreEvento: nombreEvento.trim(), // Guardar sin espacios extras
+      nombreEvento: nombreEvento.trim(),
       descripcionEvento,
       plazasTotales: Number(plazasTotales),
       PlazasDisponibles: Number(plazasTotales),
