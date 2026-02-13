@@ -56,12 +56,12 @@ app.get("/api/eventos", async (req, res) => {
     const lista_eventos = await eventos.find().toArray();
 
     // Formatear fechas a YYYY-MM-DD
-    const eventosFormateados = lista_eventos.map(cada_fecha => ({
+    const todos_eventos = lista_eventos.map(cada_fecha => ({
       ...cada_fecha,
       fecha: cada_fecha.fecha.split('T')[0],
     }));
 
-    res.json({ success: true, eventosFormateados });
+    res.json({ success: true, todos_eventos });
   } catch (error) {
     res.status(500).json({ error: "Error al obtener los eventos" });
   }
@@ -198,7 +198,6 @@ app.post("/api/login", async (req, res) => {
 
 //endpoint creear evento
 
-
 app.post("/api/creareventos", async (req, res) => {
   try {
     const { eventos } = await connectToMongoDB();
@@ -210,26 +209,18 @@ app.post("/api/creareventos", async (req, res) => {
       horaInicio,
       horaFin
     } = req.body;
-    console.log("contenido:  "+req.body);
 
     // Validar campos requeridos
-    if (
-      !nombreEvento||
-      !descripcionEvento||
-      !plazasTotales ||
-      !fecha ||
-      !horaInicio || !horaFin
-    ) {
+    if (!nombreEvento || !descripcionEvento || !plazasTotales || !fecha || !horaInicio || !horaFin) {
       return res.status(400).json({ error: "faltan campos en los eventos" });
     }
 
+    // Normalizar nombre para búsqueda
+    const nombreEventoNormalizado = nombreEvento.trim().toLowerCase();
     
-    let nombreEventoMinus = nombreEvento.trim().toLowerCase();
-    console.log("Buscando evento:", nombreEventoMinus);
-
-    // buscar si exsite nombre de evento duplicado
+    // Buscar por nombre normalizado (case insensitive)
     const eventoExistente = await eventos.findOne({
-      nombreEvento: nombreEventoMinus
+      nombreEvento: { $regex: new RegExp(`^${nombreEventoNormalizado}$`, 'i') }
     });
 
     if (eventoExistente) {
@@ -240,22 +231,15 @@ app.post("/api/creareventos", async (req, res) => {
       });
     }
 
-    const fechaDate = new Date(fecha + "T00:00:00.000Z");
-
+    // Validar horas
     if (horaFin <= horaInicio) {
       return res.status(400).json({
         error: "la hora fin debe ser mayor a la de inicio",
       });
     }
 
-    
-
-    let codigo_evento = 'Codigo'+ Math.floor(Math.random() * 10000);
-    let code_Evento = codigo_evento.toString();
-    console.log("Código evento Propio:", code_Evento);
-    let estadoIniciar= "libre";
-
-
+    // Generar código único (mejor usar timestamp para evitar duplicados)
+    const code_Evento = 'Codigo' + Math.floor(Math.random() * 1000);
 
     // Crear objeto del evento
     const eventoNuevo = {
@@ -263,39 +247,25 @@ app.post("/api/creareventos", async (req, res) => {
       descripcionEvento,
       plazasTotales: Number(plazasTotales),
       PlazasDisponibles: Number(plazasTotales),
-      fecha: fechaDate,
-      horaInicio:horaInicio,
-      horaFin:horaFin,
+      fecha: new Date(fecha + "T00:00:00.000Z").toISOString(),
+      horaInicio,
+      horaFin,
       code_Evento,
-      estado:estadoIniciar
+      estado: "libre"
     };
 
+    console.log("evento nuevo:", eventoNuevo);
     
-    console.log("evento nuevo sisissi",eventoNuevo);
-    
-    // Insertar en la base de datos
     const resultado = await eventos.insertOne(eventoNuevo);
 
-    // Respuesta
-    const respuesta = {
+    res.status(201).json({
       mensaje: "evento CREADO",
       id: resultado.insertedId,
-      eventoNuevo: {
-        nombreEvento: nombreEvento,
-        descripcionEvento,
-        plazasTotales: Number(plazasTotales),
-        PlazasDisponibles: Number(plazasTotales),
-        code_Evento,
-        fecha: fechaDate,
-        horaInicio: horaInicio,
-        horaFin: horaFin,
-      },
-    };
+      eventoNuevo
+    });
 
-    res.status(201).json(respuesta);
   } catch (error) {
     console.error("Error al crear eventos:", error);
-    console.error("Stack trace:", error.stack); 
     res.status(500).json({ 
       error: "Error interno del servidor",
       detalle: error.message 
