@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "pruebasApi_Vue copy",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

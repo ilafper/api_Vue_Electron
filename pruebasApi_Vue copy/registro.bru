@@ -1,0 +1,26 @@
+meta {
+  name: registro
+  type: http
+  seq: 1
+}
+
+post {
+  url: http://localhost:3000/api/crearusuario
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nombre":"dani",
+    "apellidos":"costas costas",
+    "correo":"dani@example.com",
+    "contraseña":"dani123",
+    "contraseña2":"dani123"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

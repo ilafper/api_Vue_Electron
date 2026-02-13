@@ -1,0 +1,28 @@
+meta {
+  name: eventosCrear
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:3000/api/creareventos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  
+  {
+      "nombreEvento": "prueba prueba",
+      "descripcionEvento": "Exposición y venta de cómics independientes de autores nacionales. Charlas y firmas de autores.",
+      "plazasTotales":5,
+      "fecha": "2026-10-15",
+      "horaInicio":"16:00",
+      "horaFin":"15:00"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
