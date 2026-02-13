@@ -355,6 +355,8 @@ app.post("/api/crearreserva", async (req, res) => {
   try {
     //recibir la resrerva
     const { reservas, eventos } = await connectToMongoDB();
+
+
     const { reserva_nueva } = req.body;
 
     console.log("Datos reserva:", reserva_nueva);
@@ -372,27 +374,40 @@ app.post("/api/crearreserva", async (req, res) => {
       return res.status(404).json({ error: "Evento no encontrado" });
     }
     
-
+    // en el caso de que llegue a 0
     if (existeEvento.PlazasDisponibles <= 0) {
-      console.log("No hay plazas disponibles. Evento lleno");
-      return res.status(400).json({ 
+      
+      return res.status(400).json({
         error: "No hay plazas disponibles para este evento",
-        plazasDisponibles: existeEvento.PlazasDisponibles 
+        plazasDisponibles: existeEvento.PlazasDisponibles,
       });
     }
 
-   
+    //pasar la fecha de la reserva a toisoString ya que viene 2026-12-12
     reserva_nueva.fecha = new Date().toISOString();
-
-    
+ 
     const resultado = await reservas.insertOne(reserva_nueva);
     console.log("Reserva creada:", resultado.insertedId);
     
     //actualizar el numero de plazas disponible sdel evento
-    await eventos.updateOne(
-      { code_Evento: reserva_nueva.codigo_evento },
-      { $inc: { PlazasDisponibles: -1 } } // resta 1
-    );
+    // Otra opción más simple: verificar después de actualizar
+     await eventos.updateOne(
+       { code_Evento: reserva_nueva.codigo_evento },
+       { $inc: { PlazasDisponibles: -1 } }
+     );
+     
+     const eventoTrasActualizar = await eventos.findOne({
+       code_Evento: reserva_nueva.codigo_evento
+     });
+     
+     if (eventoTrasActualizar.PlazasDisponibles === 0) {
+       await eventos.updateOne(
+         { code_Evento: reserva_nueva.codigo_evento },
+         { $set: { estado: "ocupado" } }
+       );
+     }
+
+
     console.log("Plaza restada. Nuevas disponibles:", existeEvento.PlazasDisponibles - 1);
 
     const respuesta = {
