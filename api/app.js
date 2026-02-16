@@ -1,6 +1,8 @@
 const express = require("express");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const bcrypt = require("bcryptjs");
+//zod 
+const { z } = require('zod');
 const app = express();
 app.use(express.json());
 
@@ -33,13 +35,12 @@ async function connectToMongoDB() {
 
 
 
-// Obtener todos los usuarios (sin contraseñas)
+// Obtener todos los usuarios
 app.get("/api/usuarios", async (req, res) => {
   try {
     const { usuarios } = await connectToMongoDB();
     // Excluir el campo contraseña de la respuesta
-    const lista_usuarios = await usuarios
-      .find({}, { projection: { contraseña: 0 } })
+    const lista_usuarios = await usuarios.find({}, { projection: { contraseña: 0 } })
       .toArray();
     res.json(lista_usuarios);
     console.log(lista_usuarios);
@@ -48,6 +49,8 @@ app.get("/api/usuarios", async (req, res) => {
     res.status(500).json({ error: "Error al obtener los usuarios" });
   }
 });
+
+
 
 app.get("/api/eventos", async (req, res) => {
   try {
@@ -67,72 +70,114 @@ app.get("/api/eventos", async (req, res) => {
   }
 });
 
-// Crear usuario NUEVo
 
+
+
+// todas las reservas
+app.get("/api/reservas", async (req, res) => {
+  try {
+    const { reservas } = await connectToMongoDB();
+    // Excluir el campo contraseña de la respuesta
+    const lista_todas_reservas = await reservas.find().toArray();
+    res.json({ success: true, lista_todas_reservas });
+    console.log("sisis todas reservas");
+    
+    console.log(lista_todas_reservas);
+    
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener las reservas" });
+  }
+});
+
+// Crear usuario NUEVo
 app.post("/api/crearusuario", async (req, res) => {
   try {
+
     const { nombre, apellidos, correo, contraseña, contraseña2 } = req.body;
 
-    // Validar campos requeridos
-    if (!nombre || !apellidos || !correo || !contraseña || !contraseña2) {
-      return res
-        .status(400)
-        .json({ error: "Todos los campos son obligatorios" });
-    }
-
-    // Verificar si el correo ya existe
     const { usuarios } = await connectToMongoDB();
-    // evitar correo duplicados
-    const usuarioExistente = await usuarios.findOne({ correo });
+    // validacion con zod
 
-    if (usuarioExistente) {
-      return res.status(409).json({ error: "El correo ya está registrado" });
+    const resultado = z.object({
+      nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
+      apellidos: z.string().min(3, "Los apellidos deben tener al menos 3 caracteres"),
+      correo: z.string().email("Correo electrónico inválido"), 
+      contraseña: z.string().min(3, "La contraseña debe tener al menos 3 caracteres"),
+      contraseña2: z.string().min(3, "La contraseña debe tener al menos 3 caracteres")
+      //validaciones personalizadas en vez de las .min que son predefinidas de zod
+    }).refine(data => data.contraseña === data.contraseña2, {
+      message: "Las contraseñas no coinciden",
+      path: ["contraseña2"]
+      //NO LANZA EXCEPCIÓN
+    }).safeParse({ nombre, apellidos, correo, contraseña, contraseña2 });
+
+     if (!resultado.success) {
+      console.log("sisis zod");
+      
+      
+      const primerError = resultado.error?.issues?.[0]?.message || "Error de validación";
+      console.log(primerError);
+      
+      return res.status(400).json({
+        success: false,
+        message: primerError  
+      });
     }
 
+
+    // Verificar contraseñas
     if (contraseña !== contraseña2) {
-      console.log("las contraseña no coinciden");
-      return res.status().json({ error: "las contrsaeñas no coinciden" });
+      return res.status(400).json({ 
+        success: false,
+        message: "Las contraseñas no coinciden" 
+      });
     }
 
-    // Hashear la nueva contraseña con baicrip
-    const saltRounds = 10;
+    // Verificar correo duplicado
+    const usuarioExistente = await usuarios.findOne({ correo });
+    if (usuarioExistente) {
+      return res.status(409).json({ 
+        success: false,
+        message: "El correo ya está registrado" 
+      });
+    }
 
+
+    // Hashear contraseña
+    const saltRounds = 10;
     const contraseñaHasheada = await bcrypt.hash(contraseña, saltRounds);
 
-    const rol = "user";
+    const code_user = 'Codigo' + Math.floor(Math.random() * 1000);
 
-    let codigo_user = 'Codigo'+ Math.floor(Math.random() * 1000);
-    let code_user = codigo_user.toString();
-
-    // Crear objeto de usuario
     const nuevoUsuario = {
       nombre,
       apellidos,
       correo,
       contraseña: contraseñaHasheada,
-      rol,
+      rol: "user",
       code_user
     };
 
-    // Insertar en la base de datos
-    const resultado = await usuarios.insertOne(nuevoUsuario);
+    await usuarios.insertOne(nuevoUsuario);
 
-    // Respuesta sin contraseña
-    const respuesta = {
-      mensaje: "Usuario creado exitosamente",
-      id: resultado.insertedId,
-      usuario: {
+    // devolver respuesta 
+    res.status(201).json({
+      success: true,
+      message: "Usuario creado exitosamente",
+      user: {
         nombre,
         apellidos,
         correo,
-        rol
-      },
-    };
+        code_user
+      }
+    });
 
-    res.status(201).json(respuesta);
   } catch (error) {
     console.error("Error al crear usuario:", error);
-    res.status(500).json({ error: "Error interno del servidor" });
+    res.status(500).json({ 
+      success: false,
+      message: "Error interno del servidor" 
+    });
   }
 });
 
@@ -142,36 +187,39 @@ app.post("/api/login", async (req, res) => {
 
     console.log("Intentando login para:", correo);
 
-    if (!correo || !contraseña) {
-      return res.status(400).json({
-        success: false,
-        message: "Correo y contraseña son requeridos",
-      });
-    }
-
     // Conectar a MongoDB
     const { usuarios } = await connectToMongoDB();
 
-    // Buscar usuario por correo
-
+    //buscar usuario
     const usuario = await usuarios.findOne({ correo });
-    //compararr la contraseña con brypcrip 
-    const contraseñaValida = await bcrypt.compare(
-      contraseña,
-      usuario.contraseña,
-    );
 
-    if (!usuario || !contraseñaValida) {
-      console.log("Usuario no encontrado o contraseña incorrecta");
+    // si existe usuario
+    if (!usuario) {
+      console.log("Usuario no encontrado");
       return res.status(401).json({
         success: false,
-        message: "correo o contraseña incorrectas",
+        message: "Correo o contraseña incorrectas",
+      });
+    }
+
+    // comparar contraseñas con bcrypt
+    const contraseñaValida = await bcrypt.compare(
+      contraseña,
+      usuario.contraseña
+    );
+
+
+    if (!contraseñaValida) {
+      console.log("Contraseña incorrecta");
+      return res.status(401).json({
+        success: false,
+        message: "Correo o contraseña incorrectas",
       });
     }
 
     console.log("Login exitoso para:", usuario.nombre);
 
-    // Crear respuesta (sin contraseña)
+    
     const respuesta = {
       success: true,
       user: {
@@ -180,21 +228,22 @@ app.post("/api/login", async (req, res) => {
         apellidos: usuario.apellidos,
         correo: usuario.correo,
         rol: usuario.rol,
-        code_user:usuario.code_user
+        code_user: usuario.code_user
       },
     };
 
     res.json(respuesta);
-    console.log(respuesta);
     
   } catch (error) {
     console.error("Error en login:", error);
     res.status(500).json({
       success: false,
-      message: "Login nonono",
+      message: "Error interno del servidor",
     });
   }
 });
+
+
 
 //endpoint creear evento
 
@@ -282,17 +331,20 @@ app.post("/api/creareventos", async (req, res) => {
 
 app.delete("/api/eliminarEvento/:id", async (req, res) => {
   const { eventos } = await connectToMongoDB();
+  const { reservas } = await connectToMongoDB();
 
   try {
     const id_eliminar = req.params.id;
 
     const resultado = await eventos.deleteOne({ code_Evento: id_eliminar});
 
-    if (resultado.deletedCount === 0) {
-      return res.status(404).json({ error: "No se encontró el documento" });
+    const reservasEliminadas = await reservas.deleteMany({ codigo_evento: id_eliminar });
+
+    if (resultado.deletedCount === 0 || reservasEliminadas.deletedCount === 0) {
+      return res.status(404).json({ error: "No se encontró el documento o no hay reservas asociadas" });
     }
 
-    res.json({ mensaje: "evento eliminado correctamente" });
+    res.json({ mensaje: "evento eliminado correctamente y sus reservas" });
 
   } catch (error) {
     res.status(500).json({ error: "Error al eliminar", detalle: error.message });
@@ -307,23 +359,23 @@ app.put("/api/modievento", async (req, res) => {
     const eventoActualizado = req.body;
     const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
     
-    // 2. Calcular cuántas reservas hay
+    //Calcular cuántas reservas hay
     const reservasCount = await reservas.countDocuments({ 
       code_Evento: code_Evento,
       estado: 'confirmada' 
     });
 
-    // 3. Calcular nuevas plazas disponibles
+    // Calcular nuevas plazas disponibles
     const nuevasPlazasDisponibles = plazasTotales - reservasCount;
 
-    // 4. Validar que no sea negativo
+    // Validar que no sea negativo
     if (nuevasPlazasDisponibles < 0) {
       return res.status(400).json({ 
         mensaje: `No se pueden reducir las plazas. Hay ${reservasCount} reservas confirmadas.` 
       });
     }
 
-    // 5. Actualizar con las nuevas plazas disponibles
+    // Actualizar con las nuevas plazas disponibles
     const resultado = await eventos.updateOne(
       { code_Evento },
       { 
@@ -349,79 +401,285 @@ app.put("/api/modievento", async (req, res) => {
 
 // crear reservas  
 
-
-
 app.post("/api/crearreserva", async (req, res) => {
   try {
-    //recibir la resrerva
     const { reservas, eventos } = await connectToMongoDB();
-
-
     const { reserva_nueva } = req.body;
 
     console.log("Datos reserva:", reserva_nueva);
     
-    // comprobar si existe el evento de la reservaa
+    // Verificar que el evento existe
     const existeEvento = await eventos.findOne({
       code_Evento: reserva_nueva.codigo_evento
     });
 
-    console.log("Evento encontrado:", existeEvento);
-
-    //error si no existe
     if (!existeEvento) {
-      console.log("Evento no encontrado");
       return res.status(404).json({ error: "Evento no encontrado" });
     }
     
-    // en el caso de que llegue a 0
+    // Verificar plazas disponibles
     if (existeEvento.PlazasDisponibles <= 0) {
-      
       return res.status(400).json({
-        error: "No hay plazas disponibles para este evento",
-        plazasDisponibles: existeEvento.PlazasDisponibles,
+        error: "No hay plazas disponibles para este evento"
       });
     }
 
-    //pasar la fecha de la reserva a toisoString ya que viene 2026-12-12
-    reserva_nueva.fecha = new Date().toISOString();
- 
-    const resultado = await reservas.insertOne(reserva_nueva);
-    console.log("Reserva creada:", resultado.insertedId);
+    // no poder unirse a un evento con menos de 15 minutos
+    const fecha_hora_actual = new Date();
+
+    // juntar la fecha
+
+    const fecha_evento_hora = new Date(`${existeEvento.fecha.split('T')[0]}T${existeEvento.horaInicio}:00`);
+
+
+    const fecha_evento = new Date(fecha_evento_hora);
+
+    console.log("fecha_evento:", fecha_evento);
     
-    //actualizar el numero de plazas disponible sdel evento
-    // Otra opción más simple: verificar después de actualizar
-     await eventos.updateOne(
-       { code_Evento: reserva_nueva.codigo_evento },
-       { $inc: { PlazasDisponibles: -1 } }
-     );
-     
-     const eventoTrasActualizar = await eventos.findOne({
-       code_Evento: reserva_nueva.codigo_evento
-     });
-     
-     if (eventoTrasActualizar.PlazasDisponibles === 0) {
-       await eventos.updateOne(
-         { code_Evento: reserva_nueva.codigo_evento },
-         { $set: { estado: "ocupado" } }
-       );
-     }
+    
+    const minutos_15 = (fecha_evento - fecha_hora_actual) / (1000 * 60);
 
+    console.log("diferencia minutos ", minutos_15.toFixed(0));
 
-    console.log("Plaza restada. Nuevas disponibles:", existeEvento.PlazasDisponibles - 1);
+    if (minutos_15 <= 15) {
+      return res.status(400).json({
+        error: "No puedes reservar un evento con menos de 15 minutos de antelación"
+      });
+    }
 
-    const respuesta = {
-      mensaje: "Reserva creada correctamente",
-      datos: reserva_nueva,
-      plazasRestantes: existeEvento.PlazasDisponibles - 1
+    // Verificar que no se apunte al MISMO evento otra vez, comparar el dode_usuario y el codigo_evento
+    const reservaMismoEvento = await reservas.findOne({
+      code_usuario: reserva_nueva.code_usuario,
+      codigo_evento: reserva_nueva.codigo_evento
+    });
+
+    if (reservaMismoEvento) {
+      return res.status(400).json({
+        error: "Ya estás apuntado a este evento"
+      });
+    }
+
+    //next, revisar que no se solapen reservas
+    const reservasDelUsuario = await reservas.find({
+      code_usuario: reserva_nueva.code_usuario
+    }).toArray();
+    
+
+    // DATOS DEL EVENTO NUEVO (el que quiere reservar)
+    
+    const fechaNueva = reserva_nueva.fecha.split('T')[0]; // "2026-02-19"
+    // pasar las horas a numeros por ejemplo 14:00 a 1400
+    const inicioNuevo = parseInt(reserva_nueva.horaInicio.replace(':', '')); // "12:00" → 1200
+    const finNuevo = parseInt(reserva_nueva.horaFin.replace(':', '')); // "14:00" → 1400
+    
+    console.log("NUEVA RESERVA - Fecha:", fechaNueva, "De:", inicioNuevo, "a", finNuevo);
+
+    // Revisar cada reserva que YA TIENE el usuario
+    for (let i = 0; i < reservasDelUsuario.length; i++) {
+      const reservaExistente = reservasDelUsuario[i];
+      
+      // Buscar los datos del evento de ESA reserva (la que ya tiene)
+      const eventoExistente = await eventos.findOne({
+        code_Evento: reservaExistente.codigo_evento
+      });
+
+      if (eventoExistente) {
+        // DATOS DEL EVENTO EXISTENTE
+        const fechaExistente = eventoExistente.fecha.split('T')[0];
+        const inicioExistente = parseInt(eventoExistente.horaInicio.replace(':', ''));
+        const finExistente = parseInt(eventoExistente.horaFin.replace(':', ''));
+        
+        console.log("RESERVA EXISTENTE - Fecha:", fechaExistente, "De:", inicioExistente, "a", finExistente);
+        
+        if (fechaNueva === fechaExistente) {
+          // Misma fecha, ahora comprobamos horas
+          if (inicioNuevo < finExistente && finNuevo > inicioExistente && reservaExistente.estado === "activa") {
+            
+            return res.status(400).json({
+              error: "Tienes una reserva en esa fecha, cancela o elige otro",
+              detalles: {
+                eventoQueTienes: eventoExistente.nombreEvento,
+                horarioQueTienes: `${eventoExistente.horaInicio} - ${eventoExistente.horaFin}`,
+                eventoQueQuieres: existeEvento.nombreEvento,
+                horarioQueQuieres: `${existeEvento.horaInicio} - ${existeEvento.horaFin}`
+              }
+            });
+          } else {
+            console.log("mismo dia pero no horas");
+          }
+        } else {
+          console.log("Días diferentes, no hay problema");
+        }
+      }
+    }
+
+    let code_reserva = 'Codigo' + Math.floor(Math.random() * 1000);
+    
+    // crear la reserva
+    const reserva_new = {
+      code_usuario: reserva_nueva.code_usuario,
+      codigo_evento: reserva_nueva.codigo_evento,
+      fecha: reserva_nueva.fecha,
+      horaInicio: reserva_nueva.horaInicio,
+      horaFin: reserva_nueva.horaFin,
+      estado:"activa",
+      code_reserva: code_reserva
     };
+    console.log("patatas");
+    
+    console.log("nueva resr4ba:", reserva_new);
+    
 
-    res.status(201).json(respuesta);
-    console.log("Respuesta:", respuesta);
+
+    await reservas.insertOne(reserva_new);
+    
+
+
+    await eventos.updateOne(
+      { code_Evento: reserva_nueva.codigo_evento },
+      { $inc: { PlazasDisponibles: -1 } }
+    );
+
+    res.status(201).json({
+      mensaje: "Reserva creada con éxito",
+      evento: existeEvento.nombreEvento,
+      fecha: fechaNueva,
+      hora: `${existeEvento.horaInicio} - ${existeEvento.horaFin}`
+    });
     
   } catch (error) {
-    console.error("Error al crear reserva:", error);
+    console.error("Error:", error);
     res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+
+
+
+// mostrar las reservas de un usuario
+
+//http://localhost:3000/api/reservas/usuario/Codigo134
+
+app.get("/api/reservas/usuario/:code_usuario", async (req, res) => {
+  
+  try {
+    const { reservas } = await connectToMongoDB();
+    const { code_usuario } = req.params;
+    
+    console.log("Buscando reservas del usuario:", code_usuario);
+    
+    // Buscar todas las reservas de ese usuario
+    const reservasDelUsuario = await reservas.find({
+      code_usuario: code_usuario
+    }).toArray();
+    
+    console.log(`Encontradas: ${reservasDelUsuario.length} reservas`);
+    
+    // Devolver las reservas
+    res.status(200).json({
+      success: true,
+      usuario: code_usuario,
+      total: reservasDelUsuario.length,
+      reservas: reservasDelUsuario
+    });
+    
+  } catch (error) {
+    console.error("Error al obtener reservas:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error interno del servidor"
+    });
+  }
+});
+
+
+
+
+//http://localhost:3000/api/cancelarreserva/usuario/Codigo134
+
+app.put("/api/cancelarreserva/usuario/:code_reserva", async (req, res) => {
+  console.log("cancelar resrva");
+  
+  try {
+
+    const { reservas } = await connectToMongoDB();
+    const { eventos } = await connectToMongoDB();
+    const { code_reserva } = req.params;
+    
+    console.log("CODIGO CODIGO", code_reserva);
+    
+    // Buscar la reserva  
+    const reserva = await reservas.findOne({
+      code_reserva: code_reserva
+    });
+    
+    if (!reserva) {
+      return res.status(404).json({
+        success: false,
+        error: "Reserva no encontrada"
+      });
+    }
+    
+    console.log(`Encontrada: ${reserva.code_reserva}`);
+    //dia actual y fecha
+
+    const fecha_hora_actual = new Date();
+
+    // juntar la fecha
+    const fecha_reserva = `${reserva.fecha}T${reserva.horaInicio}:00`;
+    
+    const fechaReserva = new Date(fecha_reserva);
+
+    console.log(fecha_hora_actual);
+    console.log(fecha_reserva);
+    
+    // restar la diferencia en minutos de las fechas para comparar
+    const minutos_15 = (fechaReserva - fecha_hora_actual) / (1000 * 60);
+
+    console.log("diferencia minutos ", minutos_15.toFixed(0));
+    
+
+    if (minutos_15 > 15) {
+        console.log("la reserva cambiara a cancelada y ajuste plazas");
+        //cambiar estado
+        await reservas.updateOne(
+          { code_reserva: code_reserva },
+          { $set: { estado: "cancelada" } }
+        );
+
+        await eventos.updateOne(
+          { code_Evento: reserva.codigo_evento},
+          { $inc: { PlazasDisponibles: 1 } }
+        );
+
+    }else if(minutos_15 <= 15 && minutos_15 > 0){
+      console.log("no asistido");
+      await reservas.updateOne(
+          { code_reserva: code_reserva },
+          { $set: { estado: "no asistido" } }
+        );
+    }else {
+      console.log("invente gpt invente");
+    }
+
+    // las fechas hace el cualculo bien  pero a la hora de visualizar las muestra en formato UTC por lo que se ve que es 1 hora menos de la que pone en tu relojito
+    
+    // Devolver las reservas
+    res.status(200).json({
+      success: true,
+      message: "Reserva cancelada correctamente",
+      reserva: reserva,
+      hora_cancelacion: fecha_hora_actual,
+      fechaReserva_reserva: fechaReserva,
+      minutos_para_cancelar: minutos_15.toFixed(0)
+    });
+    
+  } catch (error) {
+    console.error("Error al obtener reservas:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error interno del servidor"
+    });
   }
 });
 
