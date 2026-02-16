@@ -101,7 +101,7 @@ app.post("/api/crearusuario", async (req, res) => {
     const resultado = z.object({
       nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
       apellidos: z.string().min(3, "Los apellidos deben tener al menos 3 caracteres"),
-      correo: z.string().email("Correo electrónico inválido"), 
+      correo: z.email("Correo electrónico inválido"), 
       contraseña: z.string().min(3, "La contraseña debe tener al menos 3 caracteres"),
       contraseña2: z.string().min(3, "La contraseña debe tener al menos 3 caracteres")
       //validaciones personalizadas en vez de las .min que son predefinidas de zod
@@ -115,7 +115,7 @@ app.post("/api/crearusuario", async (req, res) => {
       console.log("sisis zod");
       
       
-      const primerError = resultado.error?.issues?.[0]?.message || "Error de validación";
+      const primerError = resultado.error?.issues?.[0]?.message;
       console.log(primerError);
       
       return res.status(400).json({
