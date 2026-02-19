@@ -2,7 +2,7 @@ const express = require("express");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const bcrypt = require("bcryptjs");
 //zod 
-const { z } = require('zod');
+const { z, success } = require('zod');
 const app = express();
 app.use(express.json());
 
@@ -198,7 +198,7 @@ app.post("/api/login", async (req, res) => {
       console.log("Usuario no encontrado");
       return res.status(401).json({
         success: false,
-        message: "Correo o contraseña incorrectas",
+        message: "No existe este usuario, crea uno",
       });
     }
 
@@ -244,8 +244,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-
-
 //endpoint creear evento
 
 app.post("/api/creareventos", async (req, res) => {
@@ -260,6 +258,8 @@ app.post("/api/creareventos", async (req, res) => {
       horaFin
     } = req.body;
 
+    console.log(nombreEvento,descripcionEvento,plazasTotales,fecha,horaInicio,horaFin);
+    
     // Validar campos requeridos
     if (!nombreEvento || !descripcionEvento || !plazasTotales || !fecha || !horaInicio || !horaFin) {
       return res.status(400).json({ error: "faltan campos en los eventos" });
@@ -268,7 +268,7 @@ app.post("/api/creareventos", async (req, res) => {
     // Normalizar nombre para búsqueda
     const nombreEventoNormalizado = nombreEvento.trim().toLowerCase();
     
-    // Buscar por nombre normalizado (case insensitive)
+    // Buscar por nombre normalizado
     const eventoExistente = await eventos.findOne({
       nombreEvento: { $regex: new RegExp(`^${nombreEventoNormalizado}$`, 'i') }
     });
@@ -281,14 +281,14 @@ app.post("/api/creareventos", async (req, res) => {
       });
     }
 
-    // Validar horas
+    // validar horas
     if (horaFin <= horaInicio) {
       return res.status(400).json({
         error: "la hora fin debe ser mayor a la de inicio",
       });
     }
 
-    // Generar código único (mejor usar timestamp para evitar duplicados)
+    // Generar codigo evento
     const code_Evento = 'Codigo' + Math.floor(Math.random() * 1000);
 
     // Crear objeto del evento
@@ -309,9 +309,9 @@ app.post("/api/creareventos", async (req, res) => {
     const resultado = await eventos.insertOne(eventoNuevo);
 
     res.status(201).json({
-      mensaje: "evento CREADO",
-      id: resultado.insertedId,
-      eventoNuevo
+      success:true,
+      mensaje: "evento creado correctamente",
+      evento_evento:resultado
     });
 
   } catch (error) {
