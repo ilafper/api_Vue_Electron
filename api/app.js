@@ -222,6 +222,7 @@ app.post("/api/login", async (req, res) => {
     
     const respuesta = {
       success: true,
+      message:"Inicio Sesion Exitoso",
       user: {
         id: usuario._id,
         nombre: usuario.nombre,
