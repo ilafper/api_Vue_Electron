@@ -2,7 +2,7 @@ const express = require("express");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const bcrypt = require("bcryptjs");
 //zod 
-const { z, success } = require('zod');
+const { z } = require('zod');
 const app = express();
 app.use(express.json());
 
@@ -58,10 +58,10 @@ app.get("/api/eventos", async (req, res) => {
     // Excluir el campo contraseña de la respuesta
     const lista_eventos = await eventos.find().toArray();
 
-    // Formatear fechas a YYYY-MM-DD
-    const todos_eventos = lista_eventos.map(cada_fecha => ({
-      ...cada_fecha,
-      fecha: cada_fecha.fecha.split('T')[0],
+    // Formatear fechas a año-mes-dia
+    const todos_eventos = lista_eventos.map(cada_evento => ({
+      ...cada_evento,
+      fecha: cada_evento.fecha.split('T')[0],
     }));
 
     res.json({ success: true, todos_eventos });
@@ -108,13 +108,11 @@ app.post("/api/crearusuario", async (req, res) => {
     }).refine(data => data.contraseña === data.contraseña2, {
       message: "Las contraseñas no coinciden",
       path: ["contraseña2"]
-      //NO LANZA EXCEPCIÓN
+      
     }).safeParse({ nombre, apellidos, correo, contraseña, contraseña2 });
 
      if (!resultado.success) {
       console.log("sisis zod");
-      
-      
       const primerError = resultado.error?.issues?.[0]?.message;
       console.log(primerError);
       
@@ -364,6 +362,7 @@ app.put("/api/modievento", async (req, res) => {
 
   try {
     const eventoActualizado = req.body;
+    
     const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
     
     //Calcular cuántas reservas hay
