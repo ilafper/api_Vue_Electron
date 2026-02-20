@@ -145,6 +145,7 @@ app.post("/api/crearusuario", async (req, res) => {
 
     // Hashear contraseña
     const saltRounds = 10;
+
     const contraseñaHasheada = await bcrypt.hash(contraseña, saltRounds);
 
     const code_user = 'Codigo' + Math.floor(Math.random() * 1000);
@@ -258,6 +259,7 @@ app.post("/api/creareventos", async (req, res) => {
       horaFin
     } = req.body;
 
+
     console.log(nombreEvento,descripcionEvento,plazasTotales,fecha,horaInicio,horaFin);
     
     // Validar campos requeridos
@@ -303,7 +305,7 @@ app.post("/api/creareventos", async (req, res) => {
       code_Evento,
       estado: "libre"
     };
-
+    
     console.log("evento nuevo:", eventoNuevo);
     
     const resultado = await eventos.insertOne(eventoNuevo);
@@ -528,7 +530,8 @@ app.post("/api/crearreserva", async (req, res) => {
       horaInicio: reserva_nueva.horaInicio,
       horaFin: reserva_nueva.horaFin,
       estado:"activa",
-      code_reserva: code_reserva
+      code_reserva: code_reserva,
+      nombre_evento:reserva_nueva.nombre_evento
     };
     console.log("patatas");
     
