@@ -361,7 +361,7 @@ app.put("/api/modievento", async (req, res) => {
   const { eventos, reservas } = await connectToMongoDB();
 
   try {
-    //RECIBIR
+    //acuerdate de la fechas
     const eventoActualizado = req.body;
     console.log("eventos datos a actualizar", eventoActualizado);
     //const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
@@ -388,7 +388,7 @@ app.put("/api/modievento", async (req, res) => {
       if(fechaNuevaModi<fechaEventoActual){
         console.log("nononoo mal fecha");
         
-      return res.status(404).json({success:false, error: "la nueva fecha es menor que la actual del evento" });
+        return res.status(404).json({success:false, error: "no peudes poner fecha mendor a la actual" });
       }else{
 
       }
@@ -419,7 +419,7 @@ app.put("/api/modievento", async (req, res) => {
     
     const actuReservas = await reservas.updateMany(
       { codigo_evento: code_evento },
-      
+
       {
         $set: {
           nombre_evento: datosExtra.nombreEvento,
@@ -433,7 +433,7 @@ app.put("/api/modievento", async (req, res) => {
     console.log(actuReservas);
     
 
-    
+    //acuerdate de la fechas
     
     
 
