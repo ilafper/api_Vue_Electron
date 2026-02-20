@@ -336,16 +336,20 @@ app.delete("/api/eliminarEvento/:id", async (req, res) => {
 
   try {
     const id_eliminar = req.params.id;
-
+    console.log(id_eliminar);
+    
+    //borrar el borrar y su e vento
     const resultado = await eventos.deleteOne({ code_Evento: id_eliminar});
 
+    // borrar todas las reservas de ese eventos de la coleccion
     const reservasEliminadas = await reservas.deleteMany({ codigo_evento: id_eliminar });
-
+    console.log("resservas eliminadas",reservasEliminadas);
+    
     if (resultado.deletedCount === 0 || reservasEliminadas.deletedCount === 0) {
-      return res.status(404).json({ error: "No se encontró el documento o no hay reservas asociadas" });
+      return res.status(404).json({success:false, error: "No se encontró el documento o no hay reservas asociadas" });
     }
 
-    res.json({ mensaje: "evento eliminado correctamente y sus reservas" });
+    res.json({success:true, mensaje: "Evento " + id_eliminar + "eliminado correctamente y sus reservas" });
 
   } catch (error) {
     res.status(500).json({ error: "Error al eliminar", detalle: error.message });
@@ -592,6 +596,49 @@ app.get("/api/reservas/usuario/:code_usuario", async (req, res) => {
     });
   }
 });
+
+
+
+// ver las reservas de ese evento
+app.get("/api/reservas/eventos/:code_evento", async (req, res) => {
+  
+  try {
+    const { reservas } = await connectToMongoDB();
+    const { code_evento } = req.params;
+    
+    console.log("Buscando reservas del evento:", code_evento);
+    
+    // Buscar todas las reservas de ese usuario
+    const reservasDelEvento = await reservas.find({
+      codigo_evento: code_evento
+    }).toArray();
+    
+    console.log(`Encontradas: ${reservasDelEvento.length} reservas`);
+    
+    // Devolver las reservas
+    res.status(200).json({
+      success: true,
+      evento: code_evento,
+      total: reservasDelEvento.length,
+      reservas: reservasDelEvento
+    });
+    
+  } catch (error) {
+    console.error("Error al obtener reservas:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error interno del servidor"
+    });
+  }
+});
+
+
+
+
+
+
+
+
 
 
 
