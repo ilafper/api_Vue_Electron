@@ -2,7 +2,7 @@ const express = require("express");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const bcrypt = require("bcryptjs");
 //zod 
-const { z } = require('zod');
+const { z, success, json } = require('zod');
 const app = express();
 app.use(express.json());
 
@@ -346,7 +346,7 @@ app.delete("/api/eliminarEvento/:id", async (req, res) => {
     console.log("resservas eliminadas",reservasEliminadas);
     
     if (resultado.deletedCount === 0 || reservasEliminadas.deletedCount === 0) {
-      return res.status(404).json({success:false, error: "No se encontró el documento o no hay reservas asociadas" });
+      return res.status(404).json({success:false, error: "No se encontro el evento o reservas del mismo" });
     }
 
     res.json({success:true, mensaje: "Evento " + id_eliminar + "eliminado correctamente y sus reservas" });
@@ -361,41 +361,87 @@ app.put("/api/modievento", async (req, res) => {
   const { eventos, reservas } = await connectToMongoDB();
 
   try {
+    //RECIBIR
     const eventoActualizado = req.body;
-    
-    const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
-    
-    //Calcular cuántas reservas hay
-    const reservasCount = await reservas.countDocuments({ 
-      code_Evento: code_Evento,
-      estado: 'confirmada' 
-    });
+    console.log("eventos datos a actualizar", eventoActualizado);
+    //const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
 
-    // Calcular nuevas plazas disponibles
-    const nuevasPlazasDisponibles = plazasTotales - reservasCount;
+    //separar codigo del resto de datos
+    const {code_evento, ...datosExtra}= eventoActualizado;
+    // encontrar evento
+    const eventoExiste = await eventos.findOne({ code_Evento: code_evento });
 
-    // Validar que no sea negativo
-    if (nuevasPlazasDisponibles < 0) {
-      return res.status(400).json({ 
-        mensaje: `No se pueden reducir las plazas. Hay ${reservasCount} reservas confirmadas.` 
-      });
+    if(!eventoExiste){
+       return res.status(404).json({success:false, error: "Evento no encontrado" });
     }
 
-    // Actualizar con las nuevas plazas disponibles
-    const resultado = await eventos.updateOne(
-      { code_Evento },
-      { 
+    //Seguimso
+    console.log("hhhaha");
+    
+    //no dejar meter fecha anterior a la que habia.
+    if(datosExtra.fechaDate){
+      const fechaEventoActual= eventoExiste.fecha;
+      const fechaNuevaModi= datosExtra.fechaDate;
+
+      console.log("fecha evento actual",fechaEventoActual);
+      console.log("fecha nueva evento",fechaNuevaModi);
+      if(fechaNuevaModi<fechaEventoActual){
+        console.log("nononoo mal fecha");
+        
+      return res.status(404).json({success:false, error: "la nueva fecha es menor que la actual del evento" });
+      }else{
+
+      }
+    }else{
+
+    }
+
+
+    console.log("patata");
+    
+    const actuEventos= await eventos.updateOne(
+      {code_Evento:code_evento },
+      {
         $set: {
-          plazasTotales,
-          PlazasDisponibles: nuevasPlazasDisponibles,
-          ...otrosDatos
+          nombreEvento: datosExtra.nombreEvento,
+          descripcionEvento: datosExtra.descripcionEvento,
+          fecha: datosExtra.fechaDate,
+          horaInicio: datosExtra.horaInicio,
+          horaFin: datosExtra.horaFin
+        }
+      }
+      
+
+    )
+
+    console.log(actuEventos);
+    
+    
+    const actuReservas = await reservas.updateMany(
+      { codigo_evento: code_evento },
+      
+      {
+        $set: {
+          nombre_evento: datosExtra.nombreEvento,
+          fecha: new Date(datosExtra.fechaDate).toISOString().split('T')[0],
+          horaInicio: datosExtra.horaInicio,
+          horaFin: datosExtra.horaFin
         }
       }
     );
 
+    console.log(actuReservas);
+    
+
+    
+    
+    
+
+
     res.json({ 
-      mensaje: "Evento actualizado correctamente",
-      plazasDisponibles: nuevasPlazasDisponibles
+      success:true,
+      mensaje: "evento actualizado correctamente y sus reservas",
+      
     });
 
   } catch (error) {
