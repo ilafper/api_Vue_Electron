@@ -40,8 +40,7 @@ app.get("/api/usuarios", async (req, res) => {
   try {
     const { usuarios } = await connectToMongoDB();
     // Excluir el campo contraseña de la respuesta
-    const lista_usuarios = await usuarios.find({}, { projection: { contraseña: 0 } })
-      .toArray();
+    const lista_usuarios = await usuarios.find({}, { projection: { contraseña: 0 } }).toArray();
     res.json(lista_usuarios);
     console.log(lista_usuarios);
     
@@ -51,20 +50,51 @@ app.get("/api/usuarios", async (req, res) => {
 });
 
 
-
 app.get("/api/eventos", async (req, res) => {
   try {
+
     const { eventos } = await connectToMongoDB();
-    // Excluir el campo contraseña de la respuesta
     const lista_eventos = await eventos.find().toArray();
+    //fecha actual de hoy al cargar los eventos
+    let fechaActu = new Date();
+    
+    // recorrer
+    for (let cada_evento  of lista_eventos) {
+      //comprobar la fechas de cada evento
+      const fechaEvento = new Date(cada_evento.fecha);
+      console.log("fecha evento:", fechaEvento);
+      let estadoActu= "";
+      console.log("Fecha actual:", fechaActu);
+      
+      //comprobar
+      if (fechaEvento > fechaActu) {
+          estadoActu="libre";
+      } else if (fechaEvento < fechaActu) {
+          estadoActu="finalizado";
+      } else {
+       
+      }
+      // ver si cambio
+      if (cada_evento.estado != estadoActu) {
+        console.log("cambio cambio");
+        //actualizar
+        eventos.updateOne(
+          {code_Evento:cada_evento.code_Evento},
+          {$set:{estado: estadoActu}} 
 
-    // Formatear fechas a año-mes-dia
-    const todos_eventos = lista_eventos.map(cada_evento => ({
+        );
+      }
+    }
+
+    const eventos_actualizados = await eventos.find().toArray();
+    
+    // formatear fecha al enviar
+    const list_eventos = eventos_actualizados.map(cada_evento => ({
       ...cada_evento,
-      fecha: cada_evento.fecha.split('T')[0],
+      fecha: cada_evento.fecha.split('T')[0]
     }));
-
-    res.json({ success: true, todos_eventos });
+    //acuerdate de retocar en la de movil la lista.
+    res.json({ success: true, list_eventos });
   } catch (error) {
     res.status(500).json({ error: "Error al obtener los eventos" });
   }
@@ -250,7 +280,6 @@ app.post("/api/creareventos", async (req, res) => {
     const { eventos } = await connectToMongoDB();
     const {
       nombreEvento,
-      descripcionEvento,
       plazasTotales,
       fecha,
       horaInicio,
@@ -258,32 +287,53 @@ app.post("/api/creareventos", async (req, res) => {
     } = req.body;
 
 
-    console.log(nombreEvento,descripcionEvento,plazasTotales,fecha,horaInicio,horaFin);
+    console.log(nombreEvento,plazasTotales,fecha,horaInicio,horaFin);
     
     // Validar campos requeridos
-    if (!nombreEvento || !descripcionEvento || !plazasTotales || !fecha || !horaInicio || !horaFin) {
+    if (!nombreEvento || !plazasTotales || !fecha || !horaInicio || !horaFin) {
       return res.status(400).json({ error: "faltan campos en los eventos" });
     }
 
     // Normalizar nombre para búsqueda
-    const nombreEventoNormalizado = nombreEvento.trim().toLowerCase();
+    const nombreMinus = nombreEvento.trim().toLowerCase();
     
-    // Buscar por nombre normalizado
+    // Buscar por nombre si hay duplicados
     const eventoExistente = await eventos.findOne({
-      nombreEvento: { $regex: new RegExp(`^${nombreEventoNormalizado}$`, 'i') }
+      nombreEvento:nombreMinus
     });
 
     if (eventoExistente) {
       console.log("Ya existe un evento con este nombre:", eventoExistente.nombreEvento);
       return res.status(409).json({ 
-        error: "nombre evento duplicado",
-        detalle: `Ya existe el evento "${eventoExistente.nombreEvento}"`
+        success:false,
+        error: "Nombre evento duplicado",
+
       });
+    }
+
+    // node jar meter fecha anterior a la actual
+
+    let fechaActual= new Date().setHours(0,0,0,0);
+
+    console.log("fecha actual crear evfento",fechaActual);
+    
+    let fecha_nueva= new Date(fecha);
+
+    if (fechaActual > fecha_nueva ) {
+      console.log("no fecha valida, antigua");
+      return res.status(400).json({
+        success:false,
+        error: "no puedes crear un evento anterior a la fecha actual",
+      });
+
+    }else{
+
     }
 
     // validar horas
     if (horaFin <= horaInicio) {
       return res.status(400).json({
+        success:false,
         error: "la hora fin debe ser mayor a la de inicio",
       });
     }
@@ -291,28 +341,27 @@ app.post("/api/creareventos", async (req, res) => {
     // Generar codigo evento
     const code_Evento = 'Codigo' + Math.floor(Math.random() * 1000);
 
-    // Crear objeto del evento
-    const eventoNuevo = {
-      nombreEvento: nombreEvento.trim(),
-      descripcionEvento,
-      plazasTotales: Number(plazasTotales),
-      PlazasDisponibles: Number(plazasTotales),
-      fecha: new Date(fecha + "T00:00:00.000Z").toISOString(),
-      horaInicio,
-      horaFin,
-      code_Evento,
-      estado: "libre"
-    };
+     // Crear objeto del evento
+     const eventoNuevo = {
+       nombreEvento: nombreEvento.trim(),
+       plazasTotales: Number(plazasTotales),
+       PlazasDisponibles: Number(plazasTotales),
+       fecha: new Date(fecha + "T00:00:00.000Z").toISOString(),
+       horaInicio,
+       horaFin,
+       code_Evento,
+       estado: "libre"
+     };
     
-    console.log("evento nuevo:", eventoNuevo);
+     console.log("evento nuevo:", eventoNuevo);
     
-    const resultado = await eventos.insertOne(eventoNuevo);
+     const resultado = await eventos.insertOne(eventoNuevo);
 
-    res.status(201).json({
-      success:true,
-      mensaje: "evento creado correctamente",
-      evento_evento:resultado
-    });
+     res.status(201).json({
+       success:true,
+       mensaje: "evento creado correctamente",
+       evento_evento:resultado
+     });
 
   } catch (error) {
     console.error("Error al crear eventos:", error);
@@ -345,16 +394,19 @@ app.delete("/api/eliminarEvento/:id", async (req, res) => {
     const reservasEliminadas = await reservas.deleteMany({ codigo_evento: id_eliminar });
     console.log("resservas eliminadas",reservasEliminadas);
     
-    if (resultado.deletedCount === 0 || reservasEliminadas.deletedCount === 0) {
-      return res.status(404).json({success:false, error: "No se encontro el evento o reservas del mismo" });
+    if (resultado.deletedCount === 0 ) {
+      return res.status(404).json({success:false, error: "No se encontro el evento" });
     }
 
-    res.json({success:true, mensaje: "Evento " + id_eliminar + "eliminado correctamente y sus reservas" });
+    res.json({success:true, mensaje: "Evento " + id_eliminar + "eliminado correctamente" });
 
   } catch (error) {
     res.status(500).json({ error: "Error al eliminar", detalle: error.message });
   }
 });
+
+
+
 
 // modificar evento
 app.put("/api/modievento", async (req, res) => {
@@ -362,33 +414,44 @@ app.put("/api/modievento", async (req, res) => {
 
   try {
     //acuerdate de la fechas
+
+
     const eventoActualizado = req.body;
     console.log("eventos datos a actualizar", eventoActualizado);
     //const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
 
     //separar codigo del resto de datos
-    const {code_evento, ...datosExtra}= eventoActualizado;
+
+    
+    console.log("codifo", eventoActualizado.code_evento);
+    
+    
+    
     // encontrar evento
-    const eventoExiste = await eventos.findOne({ code_Evento: code_evento });
+    const eventoExiste = await eventos.findOne({ code_Evento: eventoActualizado.code_evento });
 
     if(!eventoExiste){
        return res.status(404).json({success:false, error: "Evento no encontrado" });
     }
-
+    console.log("even to existe",eventoExiste);
+    
     //Seguimso
     console.log("hhhaha");
+
+
+
     
     //no dejar meter fecha anterior a la que habia.
-    if(datosExtra.fechaDate){
+    if(eventoActualizado.fechaDate){
       const fechaEventoActual= eventoExiste.fecha;
-      const fechaNuevaModi= datosExtra.fechaDate;
+      const fechaNuevaModi=  new Date(eventoActualizado.fechaDate) ;
 
       console.log("fecha evento actual",fechaEventoActual);
       console.log("fecha nueva evento",fechaNuevaModi);
-      if(fechaNuevaModi<fechaEventoActual){
+      if(fechaNuevaModi < fechaEventoActual){
         console.log("nononoo mal fecha");
-        
         return res.status(404).json({success:false, error: "no peudes poner fecha mendor a la actual" });
+      
       }else{
 
       }
@@ -396,48 +459,55 @@ app.put("/api/modievento", async (req, res) => {
 
     }
 
+    console.log("fecha inicio modi");
+    console.log(eventoActualizado.horaInicio);
+     console.log("fecha fein modi");
+    console.log(eventoActualizado.horaFin);
+
+      if (eventoActualizado.horaFin <= eventoActualizado.horaInicio  ) {
+      console.log("siis menor o igual, mal mal mal");
+      return res.status(404).json({success:false, error: "hora fin menor que hora Inicio" });
+    }
 
     console.log("patata");
     
     const actuEventos= await eventos.updateOne(
-      {code_Evento:code_evento },
+      {code_Evento: eventoActualizado.code_evento },
       {
         $set: {
-          nombreEvento: datosExtra.nombreEvento,
-          descripcionEvento: datosExtra.descripcionEvento,
-          fecha: datosExtra.fechaDate,
-          horaInicio: datosExtra.horaInicio,
-          horaFin: datosExtra.horaFin
+          nombreEvento: eventoActualizado.nombreEvento,
+          descripcionEvento: eventoActualizado.descripcionEvento,
+          fecha: eventoActualizado.fechaDate,
+          horaInicio: eventoActualizado.horaInicio,
+          horaFin: eventoActualizado.horaFin
         }
       }
-      
-
     )
-
+    
     console.log(actuEventos);
     
-    
-    const actuReservas = await reservas.updateMany(
-      { codigo_evento: code_evento },
 
+    //actualizar reservas de ese evento, usar el many ya que puede a ver varias de un evento
+
+    const actuReservas = await reservas.updateMany(
+      { codigo_evento: eventoActualizado.code_evento },
       {
         $set: {
-          nombre_evento: datosExtra.nombreEvento,
-          fecha: new Date(datosExtra.fechaDate).toISOString().split('T')[0],
-          horaInicio: datosExtra.horaInicio,
-          horaFin: datosExtra.horaFin
+          nombre_evento: eventoActualizado.nombreEvento,
+          fecha: new Date(eventoActualizado.fechaDate).toISOString().split('T')[0],
+          horaInicio: eventoActualizado.horaInicio,
+          horaFin: eventoActualizado.horaFin
         }
       }
     );
-
+    console.log("reservas modi");
+    
     console.log(actuReservas);
     
-
     //acuerdate de la fechas
     
     
-
-
+    
     res.json({ 
       success:true,
       mensaje: "evento actualizado correctamente y sus reservas",
@@ -469,9 +539,10 @@ app.post("/api/crearreserva", async (req, res) => {
       return res.status(404).json({ error: "Evento no encontrado" });
     }
     
-    // Verificar plazas disponibles
+    // Verificar plazas
     if (existeEvento.PlazasDisponibles <= 0) {
       return res.status(400).json({
+        success:false,
         error: "No hay plazas disponibles para este evento"
       });
     }
@@ -512,7 +583,7 @@ app.post("/api/crearreserva", async (req, res) => {
     }
 
     //next, revisar que no se solapen reservas
-    const reservasDelUsuario = await reservas.find({
+    const reservasDelUsuario = await reservas.find({  
       code_usuario: reserva_nueva.code_usuario
     }).toArray();
     
@@ -779,6 +850,63 @@ app.put("/api/cancelarreserva/usuario/:code_reserva", async (req, res) => {
   }
 });
 
+
+
+
+
+
+app.put("/api/modiestadoreserva", async (req, res) => {
+  const {reservas} = await connectToMongoDB();
+
+  try {
+    //acuerdate de la fechas
+
+
+    const reserva_modi = req.body;
+    console.log("eventos datos a actualizar", reserva_modi);
+    //const { code_Evento, plazasTotales, ...otrosDatos } = eventoActualizado;
+    console.log("llega reserva modi",reserva_modi);
+    
+    //separar codigo del resto de datos
+    const {code_reserva, ...estadoNuevo}= reserva_modi;
+
+    // encontrar evento
+    console.log("datos reserva todo",reserva_modi);
+    console.log("datos esatdo",estadoNuevo);
+
+
+    const reservaExiste = await reservas.findOne({ code_reserva: code_reserva });
+
+    if(!reservaExiste){
+       return res.status(404).json({success:false, error: "Reserva no encontrado" });
+    }
+
+
+     const actuReservas = await reservas.updateMany(
+       { code_reserva: code_reserva },
+       {
+         $set: {
+           estado: estadoNuevo.estado,
+        
+         }
+       }
+     );
+     console.log("reservas modi");  
+     console.log(actuReservas); 
+  
+    
+    
+    
+    res.json({ 
+      success:true,
+      mensaje: "evento actualizado correctamente y sus reservas",
+      
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 
 
