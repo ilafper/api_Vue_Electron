@@ -488,7 +488,7 @@ app.put("/api/modievento", async (req, res) => {
     
 
     //actualizar reservas de ese evento, usar el many ya que puede a ver varias de un evento
-
+    
     const actuReservas = await reservas.updateMany(
       { codigo_evento: eventoActualizado.code_evento },
       {
@@ -570,10 +570,11 @@ app.post("/api/crearreserva", async (req, res) => {
       });
     }
 
-    // Verificar que no se apunte al MISMO evento otra vez, comparar el dode_usuario y el codigo_evento
+    // Verificar que no se apunte al mismo evento otra vez, comparar el dode_usuario y el codigo_evento
     const reservaMismoEvento = await reservas.findOne({
       code_usuario: reserva_nueva.code_usuario,
-      codigo_evento: reserva_nueva.codigo_evento
+      codigo_evento: reserva_nueva.codigo_evento,
+      estado:"libre"
     });
 
     if (reservaMismoEvento) {
